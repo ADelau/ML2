@@ -14,45 +14,110 @@ from sklearn.neighbors import KNeighborsRegressor
 
 plotFolder = "graphs/"
 
-def getY(x):
+def get_y(x):
+    """
+    Get f(x) for the given x
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+
+    Return:
+    -------
+    - f(x)
+    """
+
     return sin(x) + 0.5*sin(3*x) + random.gauss(0, 0.1)
 
-def generateDataset(size):
+def generate_dataset(size):
+    """
+    Generate a dataset
+
+    Arguments:
+    ----------
+    - `size`: the size of the dataset.
+
+    Return:
+    -------
+    - A tuple (x,y) representing the dataset.
+    """
+
     x = []
     y = []
 
     for _ in range(size):
         newX = random.uniform(-4,4)
         x.append([newX])
-        y.append(getY(newX))
+        y.append(get_y(newX))
 
     x = np.array(x)
     x.reshape(-1, 1)
 
     return (x, y)
 
-def generateYDataset(x, size):
+def generate_y_dataset(x, size):
+    """
+    Generate a dataset for a given x
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `size`: the size of the dataset.
+
+    Return:
+    -------
+    - A list of y representing the dataset.
+    """
+
     y = []
 
     for _ in range(size):
-        y.append(getY(x))
+        y.append(get_y(x))
 
     return y
 
-def bias(x, datasetX0, classifiers):
+def bias(x, datasetX0, regressors):
+    """
+    Compute the squared bias given a x, a dataset of y for this x
+    and a list of trained regressors
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `datasetX0`: a dataset of y for this x.
+    - `regressors`: a list of trained regressors.
+
+    Return:
+    -------
+    - The squared bias.
+    """
+
     expect = np.mean(datasetX0)
 
     yHats = []
-    for classifier in classifiers:
-        yHats.append(classifier.predict(x))
+    for regressor in regressors:
+        yHats.append(regressor.predict(x))
 
     return (expect - np.mean(yHats))**2
 
-def variance(x, classifiers):
+def variance(x, regressors):
+    """ 
+    Compute the estimation variance given a x
+    and a list of trained regressors
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `regressors`: a list of trained regressors.
+
+    Return:
+    -------
+    - The estimation variance.
+    """
 
     yHats = []
-    for classifier in classifiers:
-        yHats.append(classifier.predict(x))
+    for regressor in regressors:
+        yHats.append(regressor.predict(x))
 
     return np.var(yHats)
 
@@ -63,38 +128,43 @@ if __name__ == "__main__":
     numberOfLS = 20
     nNeighbors = 5
     
+    # Generate datasets and train linear and non-linear regressor in them
     X = []
     Y = []
+
+    # Array of linear regressors
     lRegressions = []
+
+     #Array of non-linear regressors
     nonLRegression = []
     for i in range(numberOfLS):
-        dataset = generateDataset(trainingSize)
+        # Generate a dataset
+        dataset = generate_dataset(trainingSize)
         X.append(dataset[0])
         Y.append(dataset[1])
 
+        # Create and train a linear regressor on the dataset
         lr = LinearRegression()
         lr.fit(dataset[0], dataset[1])
         lRegressions.append(lr)
 
+        # Create and train a non-linear regressor on the dataset
         knn = KNeighborsRegressor(nNeighbors)
         knn.fit(dataset[0], dataset[1])
         nonLRegression.append(knn)
 
+    # Generate datasets for each x
     x = np.linspace(-4,4,100)
     datasetsX0 = []
     for i in x:
-        datasetsX0.append(generateYDataset(i, trainingSize))
+        datasetsX0.append(generate_y_dataset(i, trainingSize))
 
-
-    # oneDimX = []
-    # for item in X:
-    #     oneDimX.append(item[0])
-
-    # pol = np.polyfit(oneDimX, Y, 5)
 
     
     # Residual error
     y = []
+
+    # Compute residual error for each x
     for data in datasetsX0:
         y.append(np.var(data))
 
@@ -102,6 +172,7 @@ if __name__ == "__main__":
     plt.plot(x, y, label='Empirical results')
 
     y = []
+    # Plot the theoritical result for the residual error
     for i in x:
         y.append(0.01)
     plt.plot(x, y, label='Theoritical results')
@@ -111,6 +182,7 @@ if __name__ == "__main__":
     # Bias - Linear Regressor
     plt.figure()
     y = []
+    # Plot a linear regressor model
     for i in x:
         y.append(lRegressions[0].predict(i))
     plt.plot(x, y, label="Linear Regression Trained Model", color="red")
@@ -119,6 +191,7 @@ if __name__ == "__main__":
 
     plt.figure()
     y = []
+    # Compute squared bias for each x
     for i in range(len(x)):
         y.append(bias(x[i], datasetsX0[i], lRegressions))
 
@@ -131,6 +204,8 @@ if __name__ == "__main__":
     # Bias - Non-Linear Regressor
     plt.figure()
     y = []
+
+    # Plot a non-linear regressor model
     for i in x:
         y.append(nonLRegression[0].predict(i))
     plt.plot(x, y, label="Non-Linear Regression Trained Model", color="red")
@@ -141,6 +216,7 @@ if __name__ == "__main__":
     plt.figure()
 
     y = []
+    # Compute squared bias for each x
     for i in range(len(x)):
         y.append(bias(x[i], datasetsX0[i], nonLRegression))
 
@@ -154,6 +230,8 @@ if __name__ == "__main__":
     plt.figure()
 
     y = []
+
+    # Compute the variance for each x
     for i in x:
         y.append(variance(i, lRegressions))
 
@@ -166,6 +244,7 @@ if __name__ == "__main__":
     plt.figure()
 
     y = []
+    # Compute the variance for each x
     for i in x:
         y.append(variance(i, nonLRegression))
 
