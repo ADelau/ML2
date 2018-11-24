@@ -85,7 +85,6 @@ if __name__ == "__main__":
     for i in x:
         datasetsX0.append(generateYDataset(i, trainingSize))
 
-
     # oneDimX = []
     # for item in X:
     #     oneDimX.append(item[0])
