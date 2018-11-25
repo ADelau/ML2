@@ -13,22 +13,43 @@ import math
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.neighbors import KNeighborsRegressor
 
+# Number of learning samples used to estimate E_LS
 NB_LS = 10
-SIZE_EY = 10000
-SIZE_TS = 1000
 
+# Size of the datasets used to estimate E_y
+SIZE_EY = 10000
+
+# Folder in which to save graphs
 PLOT_FOLDER = "graphs/"
 
+# Learning sample size used when we do not make it vary
 REFERENCE_SIZE_LS = 50
-REFERENCE_STD = 1
+
+# standard deviation of epsilon used when we do not make it vary
+REFERENCE_STD = 0.01
+
+# Complexity of the linear regressor when we do not make it vary
 LINEAR_REFERENCE_COMPLEXITY = 5
+
+# Complexity of the nonlinear regressor when we do not make it vary
 NONLINEAR_REFERENCE_COMPLEXITY = 5
 
+# Range of learning sample sizes used when we make it vary
 SIZES_LS = [x*5 for x in range(1, 21)]
+
+# Range of standard deviations of epsilon used when we make it vary
 STDS = [x/10 for x in range(21)]
+
+# Range of complexity of the linear regressor used when we make it vary
 LINEAR_COMPLEXITY = [x for x in range(1, 11)]
+
+# Range of complexity of the nonlinear regressor used when we make it vary
 NONLINEAR_COMPLEXITY = [x for x in range(1, 11)]
+
+# Number of x used to compute E_x
 NB_X = 100
+
+# x used to compute E_x
 X_TO_COMPUTE = np.linspace(-4, 4, NB_X)
 
 
@@ -161,6 +182,7 @@ def get_linear_fitted_regressor(x, y, poly):
     """
 	
 	linearRegressor = LinearRegression()
+
 	# Generate the polynom fro mthe inputs
 	xLinear = poly.fit_transform(x)
 	linearRegressor.fit(xLinear, y)
