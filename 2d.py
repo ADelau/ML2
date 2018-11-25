@@ -19,20 +19,57 @@ SIZE_TS = 1000
 
 PLOT_FOLDER = "graphs/"
 
-REFERENCE_SIZE_LS = 1000
-REFERENCE_STD = 0.1
-LINEAR_REFERENCE_COMPLEXITY = 1
-NONLINEAR_REFERENCE_COMPLEXITY = 1
+REFERENCE_SIZE_LS = 50
+REFERENCE_STD = 1
+LINEAR_REFERENCE_COMPLEXITY = 5
+NONLINEAR_REFERENCE_COMPLEXITY = 5
 
-SIZES_LS = [x*100 for x in range(1, 100)]
-STDS = [x/20 for x in range(100)]
-LINEAR_COMPLEXITY = [x for x in range(1, 10)]
-NONLINEAR_COMPLEXITY = [x for x in range(1, 10)]
+SIZES_LS = [x*5 for x in range(1, 21)]
+STDS = [x/10 for x in range(21)]
+LINEAR_COMPLEXITY = [x for x in range(1, 11)]
+NONLINEAR_COMPLEXITY = [x for x in range(1, 11)]
+NB_X = 100
+X_TO_COMPUTE = np.linspace(-4, 4, NB_X)
+
 
 def get_y(x, noiseSTD):
     return sin(x) + 0.5*sin(3*x) + random.gauss(0, noiseSTD)
 
+def generate_y_dataset(x, size, noiseSTD):
+    """
+    Generate a dataset for a given x
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `size`: the size of the dataset.
+    - 'noiseSTD': the standard deviation of epsilon
+
+    Return:
+    -------
+    - A list of y representing the dataset.
+    """
+
+    y = []
+
+    for _ in range(size):
+        y.append(get_y(x, noiseSTD))
+
+    return y
+
 def generate_dataset(size, noiseSTD):
+	 """
+    Generate a dataset for a given x
+
+    Arguments:
+    ----------
+    - `size`: the size of the dataset.
+    - 'noiseSTD': the standard deviation of epsilon
+
+    Return:
+    -------
+    - 'x': A list of y representing the dataset.
+    """
 	x = []
 	y = []
 
@@ -48,88 +85,144 @@ def generate_dataset(size, noiseSTD):
 
 	return (x, y)
 
-def get_fitted_regressors(x, y, poly, nonLinearComplexity):
+def bias(x, datasetX0, regressors):
+    """
+    Compute the squared bias given a x, a dataset of y for this x
+    and a list of trained regressors
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `datasetX0`: a dataset of y for this x.
+    - `regressors`: a list of trained regressors.
+
+    Return:
+    -------
+    - The squared bias.
+    """
+
+    expect = np.mean(datasetX0)
+
+    yHats = []
+    for regressor in regressors:
+        yHats.append(regressor.predict(x))
+
+    return (expect - np.mean(yHats))**2
+
+def variance(x, regressors):
+    """ 
+    Compute the estimation variance given a x
+    and a list of trained regressors
+
+    Arguments:
+    ----------
+    - `x`: the value of x.
+    - `regressors`: a list of trained regressors.
+
+    Return:
+    -------
+    - The estimation variance.
+    """
+
+    yHats = []
+    for regressor in regressors:
+        yHats.append(regressor.predict(x))
+
+    return np.var(yHats)
+
+
+def get_linear_fitted_regressor(x, y, poly):
 	linearRegressor = LinearRegression()
 	xLinear = poly.fit_transform(x)
 	linearRegressor.fit(xLinear, y)
 
-	nonLinearRegressor = KNeighborsRegressor(nonLinearComplexity)
+	return linearRegressor
+
+def get_nonlinear_fitted_regressor(x, y, complexity):
+	nonLinearRegressor = KNeighborsRegressor(complexity)
 	nonLinearRegressor.fit(x, y)
 
-	return linearRegressor, nonLinearRegressor
+	return nonLinearRegressor
 
-def res_error(noiseSTD):
-	x, y = generate_dataset(SIZE_EY, noiseSTD)
-	return np.var(y)
+def mean_res_error(noiseSTD):
+	resErrors = []
+	for x in X_TO_COMPUTE:
+		y = generate_y_dataset(x, SIZE_EY, noiseSTD)
+		resErrors.append(np.var(y))
 
-def squared_bias(sizeLS, noiseSTD, linearComplexity, nonLinearComplexity):
+	resErrors = np.array(resErrors)
+	return np.mean(resErrors)
+
+def mean_squared_bias(sizeLS, noiseSTD, linearComplexity, nonLinearComplexity):
 	poly = PolynomialFeatures(degree = linearComplexity)
-	x, y = generate_dataset(SIZE_EY, noiseSTD)
-	Ey = np.mean(y)
-	linearYPred = []
-	nonLinearYPred = []
 
-	for i in range(NB_LS):
-		trainX, trainY = generate_dataset(sizeLS, noiseSTD)
-		linearRegressor, nonLinearRegressor = get_fitted_regressors(trainX, trainY, poly, nonLinearComplexity)
+	linearXSquaredBias = []
+	nonlinearXSquaredBias = []
+	for x in X_TO_COMPUTE:
+		linearRegressors = []
+		nonlinearRegressors = []
+		datasetX0 = generate_y_dataset(x, SIZE_EY, noiseSTD)
+		for i in range(NB_LS):
+			trainX, trainY = generate_dataset(sizeLS, noiseSTD)
+			linearRegressors.append(get_linear_fitted_regressor(trainX, trainY, poly))
+			nonlinearRegressors.append(get_nonlinear_fitted_regressor(trainX, trainY, nonLinearComplexity))
+		
+		linearXSquaredBias.append(bias(poly.fit_transform(x), datasetX0, linearRegressors))
+		nonlinearXSquaredBias.append(bias(x, datasetX0, nonlinearRegressors))
 
-		testX, testY = generate_dataset(SIZE_TS, noiseSTD)
-		linearTestX = poly.fit_transform(testX)
-		linearYPred.extend(linearRegressor.predict(linearTestX))
-		nonLinearYPred.extend(nonLinearRegressor.predict(testX))
+	linearXSquaredBias = np.array(linearXSquaredBias)
+	nonlinearXSquaredBias = np.array(nonlinearXSquaredBias)
+	linearSquaredBias = np.mean(linearXSquaredBias)
+	nonlinearSquaredBias = np.mean(nonlinearXSquaredBias)
 
-	linearYPred = np.array(linearYPred)
-	nonLinearYPred = np.array(nonLinearYPred)
-	linearEYPred = np.mean(linearYPred)
-	nonLinearEYPred = np.mean(nonLinearYPred)
-
-	linearSquaredBias = (Ey - linearEYPred)**2
-	nonLinearSquaredBias = (Ey - nonLinearEYPred)**2
-
-	return linearSquaredBias, nonLinearSquaredBias
+	return linearSquaredBias, nonlinearSquaredBias
 
 
-def variance(sizeLS, noiseSTD, linearComplexity, nonLinearComplexity):
+def mean_variance(sizeLS, noiseSTD, linearComplexity, nonLinearComplexity):
 	poly = PolynomialFeatures(degree = linearComplexity)
-	linearYPred = []
-	nonLinearYPred = []
 
-	for i in range(NB_LS):
-		trainX, trainY = generate_dataset(sizeLS, noiseSTD)
-		linearRegressor, nonLinearRegressor = get_fitted_regressors(trainX, trainY, poly, nonLinearComplexity)
+	linearXVariance = []
+	nonlinearXVariance = []
+	for x in X_TO_COMPUTE:
+		linearRegressors = []
+		nonlinearRegressors = []
+		for i in range(NB_LS):
+			trainX, trainY = generate_dataset(sizeLS, noiseSTD)
+			linearRegressors.append(get_linear_fitted_regressor(trainX, trainY, poly))
+			nonlinearRegressors.append(get_nonlinear_fitted_regressor(trainX, trainY, nonLinearComplexity))
+		
+		linearXVariance.append(variance(poly.fit_transform(x), linearRegressors))
+		nonlinearXVariance.append(variance(x, nonlinearRegressors))
 
-		testX, testY = generate_dataset(SIZE_TS, noiseSTD)
-		linearTestX = poly.fit_transform(testX)
-		linearYPred.append(np.mean(linearRegressor.predict(linearTestX)))
-		nonLinearYPred.append(np.mean(nonLinearRegressor.predict(testX)))
+	linearXVariance = np.array(linearXVariance)
+	nonlinearXVariance = np.array(nonlinearXVariance)
+	linearVariance = np.mean(linearXVariance)
+	nonlinearVariance = np.mean(nonlinearXVariance)
 
-	linearYPred = np.array(linearYPred)
-	nonLinearYPred = np.array(nonLinearYPred)
-	linearVariance = np.var(linearYPred)
-	nonLinearVariance = np.var(nonLinearYPred)
-
-	return linearVariance, nonLinearVariance
+	return linearVariance, nonlinearVariance
 	
 
 #make size vary
 def plot_size():
 	
-	resError = [res_error(REFERENCE_STD)]*len(SIZES_LS)
+	resError = [mean_res_error(REFERENCE_STD)]*len(SIZES_LS)
 	linearSquaredBias = []
 	nonLinearSquaredBias = []
 	linearVariance = []
 	nonLinearVariance = []
 	
 	for sizeLS in SIZES_LS:
-		tmpLinearSquaredBias, tmpNonLinearSquaredBias = squared_bias(sizeLS, REFERENCE_STD, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
+		print(sizeLS)
+		tmpLinearSquaredBias, tmpNonLinearSquaredBias = mean_squared_bias(sizeLS, REFERENCE_STD, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
 		linearSquaredBias.append(tmpLinearSquaredBias)
 		nonLinearSquaredBias.append(tmpNonLinearSquaredBias)
 
-		tmpLinearVariance, tmpNonLinearVariance = variance(sizeLS, REFERENCE_STD, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
+		tmpLinearVariance, tmpNonLinearVariance = mean_variance(sizeLS, REFERENCE_STD, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
 		linearVariance.append(tmpLinearVariance)
 		nonLinearVariance.append(tmpNonLinearVariance)
 
 	plt.figure()
+	plt.title("evolution w.r.t size for polynomial regression")
 	plt.plot(SIZES_LS, resError, "b-", label = "Residual error")
 	plt.plot(SIZES_LS, linearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(SIZES_LS, linearVariance, "k-", label = "Variance")
@@ -138,6 +231,7 @@ def plot_size():
 	plt.savefig(PLOT_FOLDER + "linearSize")
 
 	plt.figure()
+	plt.title("evolution w.r.t size for knn regression")
 	plt.plot(SIZES_LS, resError, "b-", label = "Residual error")
 	plt.plot(SIZES_LS, nonLinearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(SIZES_LS, nonLinearVariance, "k-", label = "Variance")
@@ -155,17 +249,19 @@ def plot_std():
 	nonLinearVariance = []
 	
 	for std in STDS:
-		resError.append(res_error(std))
+		print(std)
+		resError.append(mean_res_error(std))
 
-		tmpLinearSquaredBias, tmpNonLinearSquaredBias = squared_bias(REFERENCE_SIZE_LS, std, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
+		tmpLinearSquaredBias, tmpNonLinearSquaredBias = mean_squared_bias(REFERENCE_SIZE_LS, std, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
 		linearSquaredBias.append(tmpLinearSquaredBias)
 		nonLinearSquaredBias.append(tmpNonLinearSquaredBias)
 
-		tmpLinearVariance, tmpNonLinearVariance = variance(REFERENCE_SIZE_LS, std, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
+		tmpLinearVariance, tmpNonLinearVariance = mean_variance(REFERENCE_SIZE_LS, std, LINEAR_REFERENCE_COMPLEXITY, NONLINEAR_REFERENCE_COMPLEXITY)
 		linearVariance.append(tmpLinearVariance)
 		nonLinearVariance.append(tmpNonLinearVariance)
 
 	plt.figure()
+	plt.title("evolution w.r.t noise std for polynomial regression")
 	plt.plot(STDS, resError, "b-", label = "Residual error")
 	plt.plot(STDS, linearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(STDS, linearVariance, "k-", label = "Variance")
@@ -174,6 +270,7 @@ def plot_std():
 	plt.savefig(PLOT_FOLDER + "linearSTD")
 
 	plt.figure()
+	plt.title("evolution w.r.t noise std for knn regression")
 	plt.plot(STDS, resError, "b-", label = "Residual error")
 	plt.plot(STDS, nonLinearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(STDS, nonLinearVariance, "k-", label = "Variance")
@@ -183,41 +280,47 @@ def plot_std():
 
 #make complexity vary
 def plot_complexity():
-	resError = [res_error(REFERENCE_STD)]*min(len(LINEAR_COMPLEXITY), len(NONLINEAR_COMPLEXITY))
+	resError = [mean_res_error(REFERENCE_STD)]*min(len(LINEAR_COMPLEXITY), len(NONLINEAR_COMPLEXITY))
 	linearSquaredBias = []
 	nonLinearSquaredBias = []
 	linearVariance = []
 	nonLinearVariance = []
 	
 	for i in range(min(len(LINEAR_COMPLEXITY), len(NONLINEAR_COMPLEXITY))):
-		tmpLinearSquaredBias, tmpNonLinearSquaredBias = squared_bias(REFERENCE_SIZE_LS, REFERENCE_STD, LINEAR_COMPLEXITY[i], NONLINEAR_COMPLEXITY[i])
+		print(i)
+		tmpLinearSquaredBias, tmpNonLinearSquaredBias = mean_squared_bias(REFERENCE_SIZE_LS, REFERENCE_STD, LINEAR_COMPLEXITY[i], NONLINEAR_COMPLEXITY[i])
 		linearSquaredBias.append(tmpLinearSquaredBias)
 		nonLinearSquaredBias.append(tmpNonLinearSquaredBias)
 
-		tmpLinearVariance, tmpNonLinearVariance = variance(REFERENCE_SIZE_LS, REFERENCE_STD, LINEAR_COMPLEXITY[i], NONLINEAR_COMPLEXITY[i])
+		tmpLinearVariance, tmpNonLinearVariance = mean_variance(REFERENCE_SIZE_LS, REFERENCE_STD, LINEAR_COMPLEXITY[i], NONLINEAR_COMPLEXITY[i])
 		linearVariance.append(tmpLinearVariance)
 		nonLinearVariance.append(tmpNonLinearVariance)
 
 	plt.figure()
+	plt.title("evolution w.r.t polynom degree for polynomial regression")
 	plt.plot(LINEAR_COMPLEXITY, resError, "b-", label = "Residual error")
 	plt.plot(LINEAR_COMPLEXITY, linearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(LINEAR_COMPLEXITY, linearVariance, "k-", label = "Variance")
 	plt.legend()
-	plt.xlabel("complexity")
+	plt.xlabel("polynom degree")
 	plt.savefig(PLOT_FOLDER + "linearComplexity")
 
 	plt.figure()
+	plt.title("evolution w.r.t number of neighbours for knn regression")
 	plt.plot(NONLINEAR_COMPLEXITY, resError, "b-", label = "Residual error")
 	plt.plot(NONLINEAR_COMPLEXITY, nonLinearSquaredBias, "r-", label = "Squared bias")
 	plt.plot(NONLINEAR_COMPLEXITY, nonLinearVariance, "k-", label = "Variance")
 	plt.legend()
-	plt.xlabel("complexity")
+	plt.xlabel("number of neighbours")
 	plt.savefig(PLOT_FOLDER + "nonLinearComplexity")
 
 
 if __name__ == "__main__":
 	random.seed(11)
+	print("size \n")
 	plot_size()
+	print("std \n")
 	plot_std()
+	print("complexity \n")
 	plot_complexity()
 
